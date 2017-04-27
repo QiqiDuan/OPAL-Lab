@@ -278,6 +278,25 @@ Result = PASS （运行成功标识）
 NOTE: The CUDA Samples are not meant for performance measurements. Results may vary when GPU Boost is enabled.
 ```
 
+# 解决Linux内核升级导致NVIDIA Driver无法使用问题
+
+默认情况下，Ubuntu会自动升级Linux内核。
+
+Linux内核的升级会导致NVIDIA驱动程序无法运行（具体表现为：.cu程序无法找到GPU设备，```$ nvidia-smi```报错等）。
+
+需要先卸载NVIDIA驱动与CUDA安装程序。
+
+```
+卸载NVIDIA驱动程序
+$ sudo /usr/bin/nvidia-uninstall
+$ sudo apt-get --purge remove nvidia-*
+
+卸载CUDA Toolkit安装程序
+$ sudo /usr/local/cuda-X.Y/bin/uninstall_cuda_X.Y.pl
+```
+
+再根据以上的安装指南，重新安装即可。
+
 ## 参考资料
 
 [NeuroSurfer提供的CUDA安装方案](https://devtalk.nvidia.com/default/topic/878117/cuda-setup-and-installation/-solved-titan-x-for-cuda-7-5-login-loop-error-ubuntu-14-04-/1)
@@ -288,4 +307,5 @@ NOTE: The CUDA Samples are not meant for performance measurements. Results may v
 DQQ077 [duanqq077@qq.com]，SUSTC-CS-OPAL
 
 2017-04-26 21:00:00
+2017-04-27 21:00:00
 * ************************************************* *
