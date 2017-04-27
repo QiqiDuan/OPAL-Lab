@@ -86,7 +86,7 @@ $ ls -al
 
 执行安装程序，特别注意相关参数的设置
 不能安装opengl-libs，否则会出现循环登录问题
-$ sudo sh cuda-7.0.28_linux.run --no-opengl-libs
+$ sudo sh cuda_8.0.61_375.26_linux.run --no-opengl-libs
 
 安装过程中，选择：接收安装协议，安装NVIDIA驱动，安装CUDA工具包，安装CUDA示例；但不接收Xserver配置服务
 
