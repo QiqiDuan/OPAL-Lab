@@ -8,6 +8,7 @@
  * HOST: Handle the CUDA Errors.
  */
 #define HANDLE_CUDA_ERROR( cuda_expression ) { assertGpuError( ( cuda_expression ), __FILE__, __LINE__ ); }
+
 inline void assertGpuError( cudaError_t error_index, const char *error_file, const unsigned int error_line ) {
 	if ( error_index != cudaSuccess ) {
 		fprintf( stderr, "\n\n\n***\nCUDA ERROR :: %s [LINE %d] ---> %s.\n***\n\n\n",
