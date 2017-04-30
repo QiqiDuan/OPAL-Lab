@@ -2,6 +2,8 @@
 #include <stdio.h>
 #include <math.h>
 
+
+
 /**
  * HOST: Handle the CUDA Errors.
  */
