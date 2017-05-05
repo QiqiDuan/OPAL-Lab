@@ -57,9 +57,9 @@ int main( void ) {
 	unsigned vect_length = 10000000;
 	size_t vect_length_bytes = vect_length * sizeof( double );
 	double *vect_a = NULL, *vect_b = NULL, *vect_c = NULL;
-	vect_a = (double *) malloc( vect_length_bytes );
-	vect_b = (double *) malloc( vect_length_bytes );
-	vect_c = (double *) malloc( vect_length_bytes );
+	vect_a = ( double * ) malloc( vect_length_bytes );
+	vect_b = ( double * ) malloc( vect_length_bytes );
+	vect_c = ( double * ) malloc( vect_length_bytes );
 	if (vect_a == NULL || vect_b == NULL || vect_c == NULL ) {
 		fprintf( stderr, "\n HOST ERROR :: cannot allocate enough memory.\n");
 		exit( EXIT_FAILURE );
@@ -70,9 +70,9 @@ int main( void ) {
 	}
 
 	double *dev_vect_a, *dev_vect_b, *dev_vect_c;
-	HANDLE_CUDA_ERROR( cudaMalloc( (double **) &dev_vect_a, vect_length_bytes ) );
-	HANDLE_CUDA_ERROR( cudaMalloc( (double **) &dev_vect_b, vect_length_bytes ) );
-	HANDLE_CUDA_ERROR( cudaMalloc( (double **) &dev_vect_c, vect_length_bytes ) );
+	HANDLE_CUDA_ERROR( cudaMalloc( ( double ** ) &dev_vect_a, vect_length_bytes ) );
+	HANDLE_CUDA_ERROR( cudaMalloc( ( double ** ) &dev_vect_b, vect_length_bytes ) );
+	HANDLE_CUDA_ERROR( cudaMalloc( ( double ** ) &dev_vect_c, vect_length_bytes ) );
 
 	HANDLE_CUDA_ERROR( cudaMemcpy( dev_vect_a, vect_a, vect_length_bytes, cudaMemcpyHostToDevice ) );
 	HANDLE_CUDA_ERROR( cudaMemcpy( dev_vect_b, vect_b, vect_length_bytes, cudaMemcpyHostToDevice ) );
@@ -81,7 +81,7 @@ int main( void ) {
 	unsigned num_block_per_grid = (vect_length + num_thread_per_block - 1 ) / num_thread_per_block;
 	time_t gpu_run_time_start, gpu_run_time_end;
 	time( &gpu_run_time_start );
-	devAddVect<<< num_block_per_grid, num_thread_per_block >>> (dev_vect_a, dev_vect_b, dev_vect_c );
+	devAddVect <<< num_block_per_grid, num_thread_per_block >>> (dev_vect_a, dev_vect_b, dev_vect_c );
 	time( &gpu_run_time_end );
 	double gpu_run_time = difftime( gpu_run_time_end, gpu_run_time_start );
 	HANDLE_CUDA_ERROR( cudaPeekAtLastError() );
