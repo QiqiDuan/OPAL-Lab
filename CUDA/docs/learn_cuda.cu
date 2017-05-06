@@ -39,7 +39,7 @@ __global__ void devAddVect( const double *dev_vect_a, const double *dev_vect_b,
 
 
 /**
- * DEVICE: add two vectors.
+ * DEVICE: add two vectors with arbitrary length.
  */
 __global__ void devAddVectArbitraryLength( const double *dev_vect_a, const double *dev_vect_b,
 		double *dev_vect_c, const unsigned vect_length ) {
