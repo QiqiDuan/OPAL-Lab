@@ -20,7 +20,7 @@
  */
 #define HCE( cuda_expression ) { assertGpuError( ( cuda_expression ), __FILE__, __LINE__ ); }
 inline void assertGpuError( cudaError_t error_index, 
-    const char *error_file, const unsigned error_line ) {
+        const char *error_file, const unsigned error_line ) {
     if ( error_index != cudaSuccess ) {
         fprintf( stderr, "\n\n\n***\nCUDA ERROR :: %s [LINE %u] ---> %s.\n***\n\n\n",
             error_file, error_line, cudaGetErrorString( error_index ) );
