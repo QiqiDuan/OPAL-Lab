@@ -1,7 +1,15 @@
+/**
+ * Generate Uniformly Distributed Random Numbers via the CUDA cuRAND Library on the NVIDIA GPU.
+ */
+
 #include <stdio.h>
 #include <math.h>
 #include <time.h>
 
+/**
+ * On Ubuntu, The below header files are generally located in:
+ *      /usr/local/cuda/include
+ */
 #include <cuda_runtime.h>
 #include <curand_kernel.h>
 
@@ -10,9 +18,9 @@
 /**
  * HOST: Handle the CUDA Errors.
  */
-#define HANDLE_CUDA_ERROR( cuda_expression ) { assertGpuError( ( cuda_expression ), __FILE__, __LINE__ ); }
-
-inline void assertGpuError( cudaError_t error_index, const char *error_file, const unsigned error_line ) {
+#define HCE( cuda_expression ) { assertGpuError( ( cuda_expression ), __FILE__, __LINE__ ); }
+inline void assertGpuError( cudaError_t error_index, 
+        const char *error_file, const unsigned error_line ) {
 	if ( error_index != cudaSuccess ) {
 		fprintf( stderr, "\n\n\n***\nCUDA ERROR :: %s [LINE %u] ---> %s.\n***\n\n\n",
 				error_file, error_line, cudaGetErrorString( error_index ) );
@@ -26,78 +34,120 @@ inline void assertGpuError( cudaError_t error_index, const char *error_file, con
 /**
  * DEVICE: Set the RNG State for GPU.
  */
-__global__ void devSetRngState( unsigned ini_rng_seed, curandState *dev_rgn_state ) {
+__global__ void devSetRngState( unsigned total_num_threads, 
+        unsigned rng_seed, curandState *dev_rgn_state ) {
     unsigned tidx = threadIdx.x + blockIdx.x * blockDim.x;
-    curand_init( threadIdx.x + ini_rng_seed, threadIdx.x, 0, dev_rgn_state + tidx );
+    while ( tidx < total_num_threads ) {
+        curand_init( rng_seed, tidx, 0, dev_rgn_state + tidx );
+        tidx += blockDim.x * gridDim.x;
+    }
 }
 
 
 
 /**
- * DEVICE: Generate the Uniformly Distributed Number for GPU.
+ * DEVICE: Generate Uniformly Distributed Random Numbers for GPU.
  */
-__global__ void devGenUniformRand( curandState *dev_rgn_state, float *dev_rand_list ) {
+__global__ void devGenUniformRand( unsigned total_num_threads, 
+        curandState *dev_rgn_state, float *dev_rand_samples ) {
     unsigned tidx = threadIdx.x + blockIdx.x * blockDim.x;
-    *( dev_rand_list + tidx ) = curand_uniform( dev_rgn_state + tidx );
+    while ( tidx < total_num_threads ) {
+        *( dev_rand_samples + tidx ) = curand_uniform( dev_rgn_state + tidx );
+        tidx += blockDim.x * gridDim.x;
+    }
+}
+
+
+
+/**
+ * HOST: calculate the average value for a numeric array.
+ */
+float avg( const float *array, const unsigned array_length ) {
+    float asum = 0.0;
+    for ( unsigned ind_array = 0; ind_array < array_length; ind_array++ ) {
+        asum += *( array + ind_array );
+    }
+    return asum / array_length;
 }
 
 
 
 int main( void ) {
-    printf("*** generate the uniformly distributed random number.\n");
+    printf("\n*******\n* Generate Uniformly Distributed Random Numbers "
+        "via the CUDA cuRAND Library on the NVIDIA GPU\n*******\n");
+    srand( ( unsigned ) time( NULL ) );
 
-    const unsigned NUM_ITER = 10;
-    const unsigned NUM_ELEMENTS = 5000000;
-    const unsigned NUM_BLOCKS_PER_GRID = 128;
-    const unsigned NUM_THREADS_PER_BLOCK = ( NUM_ELEMENTS + NUM_BLOCKS_PER_GRID - 1 ) / NUM_BLOCKS_PER_GRID;
-    
+    const unsigned NUM_BLOCKS_PER_GRID = 64;
+    const unsigned NUM_THREADS_PER_BLOCK = 64;
+
+    printf("\n*** check random numbers on parallel threads ***\n");
     curandState *dev_rgn_state;
-    HANDLE_CUDA_ERROR( cudaMalloc( ( curandState ** ) &dev_rgn_state, NUM_ELEMENTS * sizeof( curandState ) ) );
-    devSetRngState <<< NUM_THREADS_PER_BLOCK, NUM_BLOCKS_PER_GRID >>> ( (size_t) time( NULL ), dev_rgn_state );
-
-    float rand_list[ NUM_ELEMENTS ];
-    float *dev_rand_list;
-    HANDLE_CUDA_ERROR( cudaMalloc( ( float ** ) &dev_rand_list, NUM_ELEMENTS * sizeof( float ) ) );
-
-    float asum = 0.0;
-    float asum_list[ NUM_ELEMENTS ];
-    for ( unsigned ind_elem = 0; ind_elem < NUM_ELEMENTS; ind_elem++ ) {
-        asum_list[ ind_elem ] = 0.0;
-    }
-
-    for ( unsigned ind_iter = 0; ind_iter < NUM_ITER; ind_iter++ ) {
-	devGenUniformRand <<< NUM_THREADS_PER_BLOCK, NUM_BLOCKS_PER_GRID >>> ( dev_rgn_state, dev_rand_list );
-        HANDLE_CUDA_ERROR( cudaMemcpy( rand_list, dev_rand_list, NUM_ELEMENTS * sizeof( float ), cudaMemcpyDeviceToHost ) );
-	
-	printf( "Iter Sample :: ind_iter = %u ---> uniform_rand = %lf.\n", ind_iter, rand_list[ NUM_ELEMENTS / 2 ] );	
-	
-        asum = 0.0;
-        for ( unsigned ind_elem = 0; ind_elem < NUM_ELEMENTS; ind_elem++ ) {
-            if (rand_list[ ind_elem ] > 1.0 || rand_list[ ind_elem ] <= 0.0 ) {
-                fprintf( stderr, "rand_list[ %u ] = %lf.\n", ind_elem, rand_list[ ind_elem ] );
-                fprintf( stderr, "ERROR :: cannot correctly generate the uniformly distributed random number.\n" );
-                exit( EXIT_FAILURE );
+    float *dev_rand_samples;
+    float *rand_samples;
+    for ( unsigned ind_num_threads = 1; ind_num_threads <= 10000000; ind_num_threads *= 10 ) {
+        printf( "ind_num_threads = %u --->\n", ind_num_threads );
+        HCE( cudaMalloc( ( curandState ** ) &dev_rgn_state, 
+            ind_num_threads * sizeof( curandState ) ) );
+        HCE( cudaMalloc( ( float ** ) &dev_rand_samples, 
+            ind_num_threads * sizeof( float ) ) );
+        devSetRngState <<< NUM_BLOCKS_PER_GRID, NUM_THREADS_PER_BLOCK >>> ( 
+            ind_num_threads, ( unsigned ) rand(), dev_rgn_state );
+        rand_samples = ( float * ) malloc( ind_num_threads * sizeof( float ) );
+        devGenUniformRand <<< NUM_BLOCKS_PER_GRID, NUM_THREADS_PER_BLOCK >>> ( 
+            ind_num_threads, dev_rgn_state, dev_rand_samples );
+        HCE( cudaMemcpy( rand_samples, dev_rand_samples, 
+            ind_num_threads * sizeof( float ), cudaMemcpyDeviceToHost ) );
+        for ( unsigned ind_elem = 0; ind_elem < ind_num_threads; ind_elem++ ) {
+            if ( rand_samples[ ind_elem ] > 1.0 || rand_samples[ ind_elem ] <= 0.0 ) {
+                fprintf( stderr, "\n\n\nERROR >> cannot generate correct random numbers.\n\n\n" );
             }
-            asum += rand_list[ ind_elem ];
-            asum_list[ ind_elem ] += rand_list[ ind_elem ];
         }
-        if ( fabs( asum / NUM_ELEMENTS - 0.5 ) > 1e-3 ) {
-            printf( "Check :: Avg = %lf.\n", asum / NUM_ELEMENTS );
-        }
+        printf( "rand_samples[%i] = %5.3lf, [%u] = %5.3lf, [%u] = %5.3lf && Avg = %7.5lf\n",
+            0, rand_samples[ 0 ],
+            ind_num_threads / 2, rand_samples[ ind_num_threads / 2 ], 
+            ind_num_threads - 1, rand_samples[ ind_num_threads - 1 ],
+            avg( rand_samples, ind_num_threads ) );
+        HCE( cudaFree( dev_rgn_state ) );
+        HCE( cudaFree( dev_rand_samples ) );
+        free( rand_samples );
     }
 
-    for ( unsigned ind_elem = 0; ind_elem < NUM_ELEMENTS; ind_elem++ ) {
-	if ( ind_elem == 0 || ind_elem == NUM_ELEMENTS / 2 || ind_elem == NUM_ELEMENTS - 1 ) {
-		printf( "Elem Sample :: ind_elem = %u ---> uniform_rand = %lf.\n", ind_elem, rand_list[ ind_elem ] );
-	}
-    }
-
-    for( unsigned ind_iter = 0; ind_iter < NUM_ITER; ind_iter++ ) {
-        if ( fabs( asum_list[ ind_iter ] / NUM_ITER - 0.5 ) > 1e-3 ) {
-            printf( "Check :: ind_iter = %u ---> Iter Avg = %lf.\n", ind_iter, asum_list[ ind_iter ] / NUM_ITER );
+    printf("\n*** check random numbers on different iterations ***\n");
+    unsigned num_threads = 1000;
+    curandState *dev_rgn_state2;
+    float *dev_rand_samples2;
+    float *rand_samples2;
+    HCE( cudaMalloc( ( curandState ** ) &dev_rgn_state2, num_threads * sizeof( curandState ) ) );
+    HCE( cudaMalloc( ( float ** ) &dev_rand_samples2, num_threads * sizeof( float ) ));
+    rand_samples2 = ( float * ) malloc( num_threads * sizeof( float ) );
+    devSetRngState <<< NUM_BLOCKS_PER_GRID, NUM_THREADS_PER_BLOCK >>> ( 
+            num_threads, ( unsigned ) rand(), dev_rgn_state2 );
+    float avg_fst = 0.0, avg_half = 0.0, avg_end = 0.0;
+    unsigned num_iter = 5000;
+    for ( unsigned ind_iter = 1; ind_iter <= num_iter; ind_iter++ ) {
+        devGenUniformRand <<< NUM_BLOCKS_PER_GRID, NUM_THREADS_PER_BLOCK >>> ( 
+            num_threads, dev_rgn_state2, dev_rand_samples2 );
+        HCE( cudaMemcpy( rand_samples2, dev_rand_samples2, 
+            num_threads * sizeof( float ), cudaMemcpyDeviceToHost ) );
+        avg_fst += rand_samples2[ 0 ];
+        avg_half += rand_samples2[ num_threads / 2 ];
+        avg_end += rand_samples2[ num_threads - 1 ];
+        for ( unsigned ind_elem = 0; ind_elem < num_threads; ind_elem++ ) {
+            if ( rand_samples2[ ind_elem ] > 1.0 || rand_samples2[ ind_elem ] <= 0.0 ) {
+                fprintf( stderr, "\n\n\nERROR >> cannot generate correct random numbers.\n\n\n" );
+            }
+        }
+        if ( ind_iter == 1 || ind_iter % 500 == 0 || ind_iter == num_iter ) {
+            printf( "ind_iter = %u ---> rand_samples[%i] = %5.3lf, [%u] = %5.3lf, [%u] = %5.3lf\n",
+            ind_iter,
+            0, rand_samples2[ 0 ],
+            num_threads / 2, rand_samples2[ num_threads / 2 ], 
+            num_threads - 1, rand_samples2[ num_threads - 1 ]);
         }
     }
-
-    HANDLE_CUDA_ERROR( cudaFree( dev_rgn_state ) );
-    HANDLE_CUDA_ERROR( cudaFree( dev_rand_list ) );
+    printf("avg_fst = %5.3lf && avg_half = %5.3lf && avg_end = %5.3lf\n", 
+        avg_fst / num_iter, avg_half / num_iter, avg_end / num_iter );
+    HCE( cudaFree( dev_rgn_state2 ) );
+    HCE( cudaFree( dev_rand_samples2 ) );
+    free( rand_samples2 );
 }
