@@ -26,7 +26,7 @@ inline void assertGpuError( cudaError_t error_index,
             error_file, error_line, cudaGetErrorString( error_index ) );
         cudaDeviceReset();
         exit( EXIT_FAILURE );
-	}
+    }
 }
 
 
